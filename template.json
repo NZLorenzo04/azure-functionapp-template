@@ -1,0 +1,104 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "ENVIRONMENT": {
+            "type": "string",
+            "metadata": {
+                "description": "The name of the deployment environment."
+            },
+            "allowedValues": [
+                "dev",
+                "test",
+                "prod"
+            ]
+        },
+        "API_SALESORDERS_FUNCTIONAPP_NAME": {
+            "type": "string",
+            "metadata": {
+                "description": "The name of the function app."
+            }
+        },
+        "API_SALESORDERS_STORAGE_NAME": {
+            "type": "string",
+            "metadata": {
+                "description": "The name of the function storage account."
+            },
+            "minLength": 1
+        },
+        "D365_APPINSIGHTS_NAME": {
+            "type": "string",
+            "metadata": {
+                "description": "The name of the Workspace insights instance."
+            },
+            "minLength": 1
+        },
+        "D365_APPSERVICEPLAN_NAME" : {
+            "type": "string",
+            "metadata": {
+                "description": "The App Service plan name."
+            },
+            "minLength": 1
+        }
+    },
+    "variables": {
+        "FunctionApp": "[concat(parameters('API_SALESORDERS_FUNCTIONAPP_NAME'), '-', parameters('ENVIRONMENT'))]",
+        "storageAccountName": "[concat(parameters('API_SALESORDERS_STORAGE_NAME'), parameters('ENVIRONMENT'))]",
+        "appInsightsName": "[concat(parameters('D365_APPINSIGHTS_NAME'), '-', parameters('ENVIRONMENT'))]",
+        "appServicePlanName": "[concat(parameters('D365_APPSERVICEPLAN_NAME'), '-', parameters('ENVIRONMENT'))]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Web/sites",
+            "apiVersion": "2022-09-01",
+            "name": "[variables('FunctionApp')]",
+            "location": "[resourceGroup().location]",
+            "tags": {},
+            "kind": "functionapp",
+            "identity": {
+                "type": "SystemAssigned"
+            },
+            "resources": [],
+            "properties": {
+                "siteConfig": {
+                    "appSettings": [
+                        {
+                            "name": "FUNCTIONS_EXTENSION_VERSION",
+                            "value": "~4"
+                        },
+                        {
+                            "name": "FUNCTIONS_WORKER_RUNTIME",
+                            "value": "dotnet"
+                        },
+                        {
+                            "name": "AzureWebJobsStorage",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=',variables('storageAccountName'),';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', concat(variables('storageAccountName'))), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).keys[0].value,';EndpointSuffix=','core.windows.net')]"
+                        },
+                        {
+                            "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=',variables('storageAccountName'),';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', concat(variables('storageAccountName'))), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).keys[0].value,';EndpointSuffix=','core.windows.net')]"
+                        },
+                        {
+                            "name": "WEBSITE_CONTENTSHARE",
+                            "value": "[toLower(variables('FunctionApp'))]"
+                        },
+                        {
+                            "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
+                            "value": "[reference(resourceId('Microsoft.Insights/components/', variables('appInsightsName')), '2020-02-02').InstrumentationKey]"
+                        },
+                        {              
+                            "name": "WEBSITE_TIME_ZONE",
+                            "value": "New Zealand Standard Time"
+                        },
+                        {
+                            "name": "WEBSITE_RUN_FROM_PACKAGE",
+                            "value": "1"
+                        }
+                    ]
+                },
+                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]",
+                "clientAffinityEnabled": true
+            }
+        }
+    ]
+}
